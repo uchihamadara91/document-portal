@@ -39,4 +39,10 @@ git commit -m "commit message"
 
 ```
 git push origin main
+
+```
+
+### cloning the repo
+```
+git clone https://github.com/uchihamadara91/document-portal.git
 ```
