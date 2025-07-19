@@ -17,6 +17,7 @@ code .
 conda create -p <env_name> python=3.10 -y
 
 ```
+```
 conda activate <path_of_env>
 ```
 
@@ -41,8 +42,8 @@ git commit -m "commit message"
 git push origin main
 
 ```
+#### cloning the repo
 
-### cloning the repo
 ```
 git clone https://github.com/uchihamadara91/document-portal.git
 ```
