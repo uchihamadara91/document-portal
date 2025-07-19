@@ -1,7 +1,7 @@
-##Command need to follow
+## Command need to follow
 
 
-#command 
+# command 
 ```
 
 mkdir <project_folder_name>
@@ -12,7 +12,7 @@ cd  <project_folder_name>
 code .
 ```
 
-##for conda env
+## for conda env
 ```
 conda create -p <env_name> python=3.10 -y
 
