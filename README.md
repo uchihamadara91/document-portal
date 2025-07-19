@@ -64,8 +64,10 @@ https://console.groq.com/keys
 
 https://console.groq.com/docs/overview
 
+```
 
-## GEMINI api kEY
+
+## GEMINI API kEY
 
 ```
 https://aistudio.google.com/apikey
