@@ -18,7 +18,7 @@ llm:
     max_output_tokens: 2048
 
   google:
-    provider: "groq"
+    provider: "google"
     model_name: "gemini-2.0-flash"
     temperature: 0
     max_output_tokens: 2048
