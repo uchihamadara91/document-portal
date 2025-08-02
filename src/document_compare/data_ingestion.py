@@ -43,6 +43,8 @@ class DocumentIngestion:
             if not reference_file.name.endswith(".pdf") or not actual_file.name.endswith(".pdf"):
                 raise ValueError("Upload Only PDF files")
             
+            with open(ref_path, "wb") as f:
+                f.write(reference_file.getbuffer())
             with open(act_path, "wb") as f:
                 f.write(actual_file.getbuffer())
 
