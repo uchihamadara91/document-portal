@@ -49,27 +49,32 @@ git clone https://github.com/uchihamadara91/document-portal.git
 
 ```
 
-## Min req for this proj
+## Minimum Requirements for the Project
 
-1. LLM Model ##groq(free), openai, gemini(free for 15 days), claude, huggingface(free)
-2. Embedding Model ##openai, hugginface, geminiapi
-3. Vector Database ### Inmemory Vector Database, Ondisk DB, cloud based DB
+### LLM Models
+- **Groq** (Free)
+- **OpenAI** (Paid)
+- **Gemini** (15 Days Free Access)
+- **Claude** (Paid)
+- **Hugging Face** (Free)
+- **Ollama** (Local Setup)
 
+### Embedding Models
+- **OpenAI**
+- **Hugging Face**
+- **Gemini**
 
-## GROQ API KEY LINK
+### Vector Databases
+- **In-Memory**
+- **On-Disk**
+- **Cloud-Based**
 
-```
+## API Keys
 
-https://console.groq.com/keys
+### GROQ API Key
+- [Get your API Key](https://console.groq.com/keys)  
+- [Groq Documentation](https://console.groq.com/docs/overview)
 
-https://console.groq.com/docs/overview
-
-```
-
-
-## GEMINI API kEY
-
-```
-https://aistudio.google.com/apikey
-
-```
+### Gemini API Key
+- [Get your API Key](https://aistudio.google.com/apikey)  
+- [Gemini Documentation](https://ai.google.dev/gemini-api/docs/models)
