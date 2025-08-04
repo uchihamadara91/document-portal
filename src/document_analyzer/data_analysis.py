@@ -28,7 +28,7 @@ class DocumentAnalyzer:
                 llm=self.llm
             )
 
-            self.prompt = PROMPT_REGISTRY["document_analysis"]
+            self.prompt = PROMPT_REGISTRY[PromptType.DOCUMENT_ANALYSIS.value]
 
             self.log.info("DocumentAnalyzer Initialized Successfully")
 
