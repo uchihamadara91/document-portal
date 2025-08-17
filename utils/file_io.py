@@ -1,21 +1,23 @@
 from __future__ import annotations
-import os
-import sys
-import json
+import re
 import uuid
 from pathlib import Path
-from datetime import datetime, timezone
-from typing import Iterable, List, Optional, Dict, Any
-from utils.model_loader import ModelLoader
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from typing import Iterable, List
 from logger.custom_logger import CustomLogger
 from exception.custom_exception import DocumentPortalException
 
 log = CustomLogger().get_logger(__name__)
 SUPPORTED_EXTENSIONS = ['.txt', '.pdf', '.docx'] 
 
+# ----------------------------- #
+# Helpers (file I/O + loading)  #
+# ----------------------------- #
 
-def _session_id(prefix: str = "session")->str:
-    return f"{prefix}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+def generate_session_id(prefix: str = "session")->str:
+    ist = ZoneInfo("Asia/Kolkata")
+    return f"{prefix}_{datetime.now(ist).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
 
 
 def save_uploaded_files(uploaded_files: Iterable, target_dir: Path)-> List[Path]:
@@ -35,7 +37,9 @@ def save_uploaded_files(uploaded_files: Iterable, target_dir: Path)-> List[Path]
                 log.warning("unsupported file skipped", filename=name)
                 continue
 
-            fname = f"{uuid.uuid4().hex[:8]}{ext}"
+            # Clean file name (only alphanum, dash, underscore)
+            safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', Path(name).stem).lower()
+            fname = f"{safe_name}_{uuid.uuid4().hex[:8]}{ext}"
             out = target_dir / fname
 
             with open(out, "wb") as f:
