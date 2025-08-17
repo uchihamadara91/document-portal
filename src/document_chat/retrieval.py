@@ -24,7 +24,7 @@ class ConversationalRAG:
         answer = rag.invoke("What is ...?", chat_history=[])
     """
 
-    def __init__(self, session_id: Optional[str],retriever):
+    def __init__(self, session_id: Optional[str],retriever=None):
         try:
             self.log = CustomLogger().get_logger(__name__)
             self.session_id = session_id
@@ -53,7 +53,7 @@ class ConversationalRAG:
             k: int = 5,
             index_name: str = "index",
             search_type: str = "similarity",
-            search_kwargs: Optional[Dict[str]] = None
+            search_kwargs: Optional[Dict[str, Any]] = None
             ):
         """
         Load FAISS vectorstore from disk and build retriever + LCEL chain
@@ -62,12 +62,12 @@ class ConversationalRAG:
             if not os.path.isdir(index_path):
                 raise FileNotFoundError(f"FAISS index directory not found")
 
-            embeddings = ModelLoader()
+            embeddings = ModelLoader().load_embeddings()
             vectorstore = FAISS.load_local(
                 index_path,
                 embeddings,
                 index_name=index_name,
-                allow_dangerous_serialization=True
+                allow_dangerous_deserialization=True
             )
 
             if search_kwargs is None:

@@ -1,21 +1,9 @@
 from __future__ import annotations
-import os
-import sys
-import json
-import uuid
-import hashlib
-import shutil
 from pathlib import Path
-from datetime import datetime, timezone
-from typing import Iterable, List, Optional, Dict, Any
-
-import fitz
+from typing import Iterable, List
 from langchain.schema import Document
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, Docx2txtLoader
-from langchain_community.vectorstores import FAISS
-
-from utils.model_loader import ModelLoader
+from fastapi import UploadFile
 from logger.custom_logger import CustomLogger
 from exception.custom_exception import DocumentPortalException
 
@@ -61,8 +49,30 @@ def concat_for_analysis(docs: List[Document]) ->str:
     return "\n".join(parts)
 
 
-def concat_for_comparison(ref_docs: List[Document], act_docs: List{Document}) ->str:
+def concat_for_comparison(ref_docs: List[Document], act_docs: List[Document]) ->str:
     left = concat_for_analysis(ref_docs)
     right = concat_for_analysis(act_docs)
 
     return f"<<REFERENCE_DOCUMENTS>>\n{left}\n\n<<ACTUAL_DOCUMENTS>>\n{right}"
+
+
+# ---------- HELPERS ---------- # 
+
+class FastAPIFileAdapter:
+    """Adapt FAstAPI UploadFile -> .name + .getbuffer() API"""
+
+    def __init__(self, uf: UploadFile):
+        self._uf = uf
+        self.name = uf.filename
+
+    def getbuffer(self) -> bytes:
+        self._uf.file.seek(0)
+        return self._uf.file.read()
+    
+
+def read_pdf_via_handler(handler, path: str) -> str:
+    if hasattr(handler, "read_pdf"):
+        return handler.read_pdf(path)
+    if hasattr(handler, "read_"):
+        return handler.read_(path)
+    raise RuntimeError("DocHandler has neither read_pdf nor read_ method.")

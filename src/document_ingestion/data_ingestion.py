@@ -101,7 +101,7 @@ class FaissManager:
         if not texts:
             raise DocumentPortalException("No existing FAISS index and no data to create one", sys)
         
-        self.vs = FAISS.from_texts(texts=texts, embedding=self.emb, metadata=metadatas or [])
+        self.vs = FAISS.from_texts(texts=texts, embedding=self.emb, metadatas=metadatas or [])
         self.vs.save_local(str(self.index_dir))
         return self.vs
 
@@ -137,7 +137,7 @@ class ChatIngestor:
     def _resolve_dir(self, base: Path):
         if self.use_session:
             d = base / self.session_id
-            d.mkdir(parents=True, exists_ok=True)
+            d.mkdir(parents=True, exist_ok=True)
             return d
         return base
 
@@ -170,7 +170,7 @@ class ChatIngestor:
                 vs = fm.load_or_create(texts=texts, metadatas=metas)
 
             except Exception as e:
-                vs = fm.load_or_create(texts=texts, metadats=metas)
+                vs = fm.load_or_create(texts=texts, metadatas=metas)
 
             added = fm.add_documents(chunks)
             self.log.info("FAISS index updated", added=added, index=str(self.faiss_dir))
@@ -241,7 +241,7 @@ class DocumentComparator:
 
     def __init__(self, base_dir :str ="data/document_compare", session_id :Optional[str] = None):
         self.log = CustomLogger().get_logger(__name__)
-        self.base_dir = base_dir
+        self.base_dir = Path(base_dir)
         self.session_id = session_id or _session_id()
         self.session_path = self.base_dir / self.session_id
         self.session_path.mkdir(parents=True, exist_ok=True)

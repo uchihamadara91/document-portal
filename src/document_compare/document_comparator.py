@@ -33,7 +33,7 @@ class DocumentComparatorLLM:
             }
             self.log.info("Starting document comparison", inputs=inputs)
             response = self.chain.invoke(inputs)
-            self.log.info("Document comparison completed", response=response)
+            self.log.info("Document comparison completed", respons_preview=str(response))
             return self._format_response(response)
 
         except Exception as e:
@@ -48,6 +48,6 @@ class DocumentComparatorLLM:
             self.log.info("Response formatted into DataFrame", dataframe=df)
             return df
         except Exception as e:
-            self.log.error("Error formatting response into Dataframe", srror=str(e))
+            self.log.error("Error formatting response into Dataframe", error=str(e))
             raise DocumentPortalException("Error formatting response", sys)
 
