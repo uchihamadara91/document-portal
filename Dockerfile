@@ -16,6 +16,9 @@ COPY requirements.txt .
 
 COPY .env .
 
+COPY config/ ./config/
+
+
 # Copy project files
 COPY . .
 
