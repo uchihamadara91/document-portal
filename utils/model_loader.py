@@ -5,6 +5,7 @@ from utils.config_loader import load_config
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
+#from langchain_openai import ChatOpenAI
 from logger.custom_logger import CustomLogger
 from exception.custom_exception_archive import DocumentPortalException
 
@@ -95,6 +96,14 @@ class ModelLoader:
                 api_key=self.api_keys["GROQ_API_KEY"],
             )
             return llm
+        
+        # elif provider == "openai":
+        #     return ChatOpenAI(
+        #         model=model_name,
+        #         api_key=self.api_keys["OPENAI_API_KEY"],
+        #         temperature=temperature,
+        #         max_tokens=max_tokens
+        #     )
         
         else:
             log.error("Unsupported LLM provider", provider=provider)
