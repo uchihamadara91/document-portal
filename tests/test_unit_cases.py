@@ -10,3 +10,10 @@ def test_home():
     response = client.get("/")
     assert response.status_code == 200
     assert "Document Portal" in response.text
+
+
+def test_health():
+    response = client.post("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status" : "ok", "service": "Document Portal"}
+
