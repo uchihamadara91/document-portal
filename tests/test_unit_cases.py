@@ -15,5 +15,5 @@ def test_home():
 def test_health():
     response = client.post("/health")
     assert response.status_code == 200
-    assert response.json() == {"status" : "ok", "service": "Document Portal"}
+    assert response.json() == {"status" : "ok", "service": "document-portal"}
 
