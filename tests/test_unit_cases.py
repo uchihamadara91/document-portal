@@ -85,7 +85,7 @@ def test_health():
 
 
 # -------- Compare Endpoint (happy path, mocked) -------- #
-
+import io
 def test_compare_documents(monkeypatch):
     # Monkeypatch comparison
     from src.document_compare.document_comparator import DocumentComparatorLLM
