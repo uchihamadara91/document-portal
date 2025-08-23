@@ -11,7 +11,7 @@ def test_home():
     assert response.status_code == 200
     assert "Document Portal" in response.text
 
-
+# -------- Health Endpoint -------- #
 def test_health():
     response = client.post("/health")
     assert response.status_code == 200
