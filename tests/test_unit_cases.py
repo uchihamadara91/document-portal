@@ -35,7 +35,7 @@ def test_analyze_valid_pdf(monkeypatch):
 
     # Monkeypatch analyzer to return fixed result
     from src.document_analyzer.data_analysis import DocumentAnalyzer
-    monkeypatch.setattr(DocumentAnalyzer, "analyze_document",lambda self, text: {"summary": "fake summary"})
+    monkeypatch.setattr(DocumentAnalyzer, "analyze_document",lambda text: {"summary": "fake summary"})
 
     response = client.post("/analyze", files={"file": ("test.pdf", file_content, "application/pdf")})
     assert response.status_code == 200
