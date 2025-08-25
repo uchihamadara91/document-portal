@@ -1,5 +1,7 @@
 # tests/test_unit_cases.py
 
+import io
+import os
 import pytest
 from fastapi.testclient import TestClient
 from api.main import app   # or your FastAPI entrypoint
@@ -19,14 +21,6 @@ def test_health():
 
 
 # -------- Analyze Endpoint (happy Path) -------- #
-
-import io
-import pytest
-from fastapi.testclient import TestClient
-from api.main import app   # your FastAPI entrypoint
-
-client = TestClient(app)
-
 
 def test_home():
     """Basic sanity check for home route"""
@@ -109,7 +103,7 @@ def test_analyze_internal_error(monkeypatch):
     assert "Analysis Failed" in response.json()["detail"]
 
 
-
+# -------- Compare Endpoint (happy Path) -------- #
 
 def test_compare_documents_success(monkeypatch):
     class MockDocumentComparator:
@@ -180,4 +174,73 @@ def test_compare_documents_invalid_file(monkeypatch):
     assert "Only PDF files are allowed" in response.text or "Comparison Failed" in response.text
 
 
+# -------- Chat index and Chat Query Endpoint (happy Path) -------- #
 
+class FakeUploadFile:
+    def __init__(self, filename, content_bytes):
+        self.filename = filename
+        self.file = io.BytesIO(content_bytes)
+        self.content = content_bytes
+
+@pytest.fixture
+def mock_chat_ingestor(monkeypatch):
+    class MockChatIngestor:
+        def __init__(self, temp_base, faiss_base, use_session_dirs, session_id=None):
+            self.session_id = session_id or "mock-session"
+        def built_retriever(self, wrapped, chunk_size, chunk_overlap, k):
+            return "mock_retriever"
+    monkeypatch.setattr("api.main.ChatIngestor", MockChatIngestor)
+
+@pytest.fixture
+def mock_conversational_rag(monkeypatch):
+    class MockConversationalRAG:
+        def __init__(self, session_id=None, retriever=None):
+            self.session_id = session_id
+        def load_retriever_from_faiss(self, index_dir, k=5, index_name=None):
+            pass
+        def invoke(self, question, chat_history=None):
+            return "mock answer"
+    monkeypatch.setattr("api.main.ConversationalRAG", MockConversationalRAG)
+
+
+# 1. Test /chat/index success with minimal files
+def test_chat_build_index_success(mock_chat_ingestor):
+    files = [
+        ("files", ("file1.txt", io.BytesIO(b"Dummy text content"), "text/plain")),
+        ("files", ("file2.txt", io.BytesIO(b"More text"), "text/plain")),
+    ]
+    response = client.post(
+        "/chat/index",
+        files=files,
+        data={"session_id": "test-session", "use_session_dirs": "true"}
+    )
+    assert response.status_code == 200
+    json_resp = response.json()
+    assert "session_id" in json_resp
+    assert json_resp["k"] == 5
+    assert json_resp["use_session_dirs"] is True
+
+
+# 2. Test /chat/index failure returns 500 on exception
+def test_chat_build_index_failure(monkeypatch):
+    def fail_init(*args, **kwargs):
+        raise Exception("fail")
+    monkeypatch.setattr("api.main.ChatIngestor", fail_init)
+    files = [("files", ("file.txt", io.BytesIO(b"dummy"), "text/plain"))]
+    response = client.post("/chat/index", files=files)
+    assert response.status_code == 500
+    assert "Indexing failed" in response.json()["detail"]
+
+# 3. Test /chat/query success with session id
+def test_chat_query_success(mock_conversational_rag):
+    data = {
+        "question": "What is AI?",
+        "session_id": "test-session",
+        "use_session_dirs": "true",
+        "k": "5"
+    }
+    response = client.post("/chat/query", data=data)
+    assert response.status_code == 200
+    json_resp = response.json()
+    assert json_resp["answer"] == "mock answer"
+    assert json_resp["session_id"] == "test-session"
