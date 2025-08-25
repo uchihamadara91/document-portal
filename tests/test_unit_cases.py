@@ -109,3 +109,75 @@ def test_analyze_internal_error(monkeypatch):
     assert "Analysis Failed" in response.json()["detail"]
 
 
+
+
+def test_compare_documents_success(monkeypatch):
+    class MockDocumentComparator:
+        def __init__(self):
+            self.session_id = "mock-session"
+            self.session_path = None
+
+        def save_uploaded_files(self, reference_file, actual_file):
+            # Return fake paths
+            return "ref_path.pdf", "act_path.pdf"
+
+        def combine_documents(self):
+            return "Combined document text for comparison"
+
+    class MockDocumentComparatorLLM:
+        def compare_documents(self, combined_docs: str):
+            import pandas as pd
+            # Return a simple DataFrame as mock result
+            return pd.DataFrame([
+                {"section": "Summary", "difference": "Minor"},
+                {"section": "Details", "difference": "Major"},
+            ])
+
+    # Patch classes in your main app module to use mocks
+    import api.main as main_app
+    monkeypatch.setattr(main_app, "DocumentComparator", MockDocumentComparator)
+    monkeypatch.setattr(main_app, "DocumentComparatorLLM", lambda: MockDocumentComparatorLLM())
+
+    # Prepare two fake PDF files as in-memory byte streams
+    fake_pdf_ref = io.BytesIO(b"%PDF-1.4 fake reference pdf data")
+    fake_pdf_act = io.BytesIO(b"%PDF-1.4 fake actual pdf data")
+
+    response = client.post(
+        "/compare",
+        files={
+            "reference": ("ref.pdf", fake_pdf_ref, "application/pdf"),
+            "actual": ("act.pdf", fake_pdf_act, "application/pdf"),
+        }
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "rows" in data
+    assert isinstance(data["rows"], list)
+    assert len(data["rows"]) == 2
+    assert "session_id" in data
+    assert data["session_id"] == "mock-session"
+    # Check content keys in row
+    assert "section" in data["rows"][0]
+    assert "difference" in data["rows"][0]
+
+def test_compare_documents_invalid_file(monkeypatch):
+    # Provide a non-PDF file input to check error handling
+
+    fake_txt_file = io.BytesIO(b"Not a PDF file content")
+
+    # No patching needed here; real code should raise on invalid file type
+
+    response = client.post(
+        "/compare",
+        files={
+            "reference": ("ref.txt", fake_txt_file, "text/plain"),
+            "actual": ("act.pdf", io.BytesIO(b"%PDF-1.4 valid pdf"), "application/pdf"),
+        }
+    )
+
+    assert response.status_code == 500
+    assert "Only PDF files are allowed" in response.text or "Comparison Failed" in response.text
+
+
+
