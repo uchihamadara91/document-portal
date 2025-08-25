@@ -97,12 +97,14 @@ def test_analyze_internal_error(monkeypatch):
     monkeypatch.setattr(main_app, "DocHandler", MockDocHandler)
     monkeypatch.setattr(main_app, "DocumentAnalyzer", lambda: MockAnalyzer())
 
+    client = TestClient(app)
+
     fake_pdf = io.BytesIO(b"%PDF-1.4 Broken dummy content")
     response = client.post(
         "/analyze",
         files={"file": ("test.pdf", fake_pdf, "application/pdf")}
     )
-
+    print("RESPONSE JSON:", response.json())
     assert response.status_code == 500
     assert "Analysis Failed" in response.json()["detail"]
 
