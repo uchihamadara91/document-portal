@@ -104,6 +104,6 @@ def test_analyze_internal_error(monkeypatch):
     )
 
     assert response.status_code == 500
-    assert "Analysis failed" in response.text
+    assert "Analysis Failed" in response.json()["detail"]
 
 
