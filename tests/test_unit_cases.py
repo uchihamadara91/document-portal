@@ -6,6 +6,8 @@ import pytest
 from fastapi.testclient import TestClient
 from api.main import app   # or your FastAPI entrypoint
 
+
+
 client = TestClient(app)
 
 def test_home():
@@ -244,3 +246,83 @@ def test_chat_query_success(mock_conversational_rag):
     json_resp = response.json()
     assert json_resp["answer"] == "mock answer"
     assert json_resp["session_id"] == "test-session"
+
+
+# 4. Test /chat/query error on missing session_id with use_session_dirs true
+def test_chat_query_missing_session_id():
+    data = {
+        "question": "Question?",
+        "use_session_dirs": "true"
+    }
+    response = client.post("/chat/query", data=data)
+    assert response.status_code == 400
+    assert "session_id is required" in response.json()["detail"]
+
+# 5. Test /chat/query error when FAISS index dir missing
+def test_chat_query_missing_index_dir(monkeypatch, tmp_path):
+    # Make index dir not exist
+    monkeypatch.setattr("os.path.isdir", lambda path: False)
+    data = {
+        "question": "Hi?",
+        "session_id": "test-session",
+        "use_session_dirs": "true"
+    }
+    response = client.post("/chat/query", data=data)
+    assert response.status_code == 404
+    assert "FAISS index not found" in response.json()["detail"]
+
+# 6. Test FaissManager _exists returns correct boolean
+def test_faiss_manager_exists(tmp_path):
+    index_dir = tmp_path
+    (index_dir / "index.faiss").write_text("fake faiss content")
+    (index_dir / "index.pkl").write_text("fake pkl content")
+    from src.document_ingestion.data_ingestion import FaissManager  # Adjust import path appropriately
+    fm = FaissManager(index_dir=index_dir, model_loader=None)
+    assert fm._exists() is True
+
+# 7. Test FaissManager _fingerprint returns string as expected
+def test_faiss_manager_fingerprint():
+    from src.document_ingestion.data_ingestion import FaissManager
+    text = "some text"
+    md = {"source": "/path/to/file", "row_id": 5}
+    fp = FaissManager._fingerprint(text, md)
+    assert fp == "/path/to/file::5"
+    md2 = {}
+    fp2 = FaissManager._fingerprint(text, md2)
+    assert isinstance(fp2, str) and len(fp2) == 64  # sha256 hex length
+
+# 8. Test ChatIngestor _resolve_dir creates correct paths
+def test_chat_ingestor_resolve_dir(monkeypatch, tmp_path):
+    from src.document_ingestion.data_ingestion import ChatIngestor
+    ci = ChatIngestor(temp_base=str(tmp_path), faiss_base=str(tmp_path), use_session_dirs=True, session_id="sess1")
+    assert (tmp_path / "sess1").exists()
+    ci2 = ChatIngestor(temp_base=str(tmp_path), faiss_base=str(tmp_path), use_session_dirs=False)
+    assert str(ci2.temp_dir) == str(tmp_path)
+
+# 9. Test ConversationalRAG raises exception if invoke before loading retriever
+def test_conversationalrag_invoke_fail(monkeypatch):
+    from src.document_chat.retrieval import ConversationalRAG
+    rag = ConversationalRAG(session_id="sess")
+    rag.chain = None
+    with pytest.raises(Exception):
+        rag.invoke("Hello")
+
+# 10. Test ConversationalRAG load_retriever_from_faiss success
+def test_conversationalrag_load_retriever(monkeypatch, tmp_path):
+    from src.document_chat.retrieval import ConversationalRAG
+
+    def fake_load_embeddings():
+        return "embedding"
+
+    class FakeFAISS:
+        @staticmethod
+        def load_local(path, embeddings, index_name=None, allow_dangerous_deserialization=True):
+            return FakeFAISS()
+        def as_retriever(self, search_type=None, search_kwargs=None):
+            return "retriever"
+
+    monkeypatch.setattr("src.chatindex.conversationalrag.ModelLoader.load_embeddings", fake_load_embeddings)
+    monkeypatch.setattr("src.chatindex.conversationalrag.FAISS", FakeFAISS)
+    rag = ConversationalRAG(session_id="sess")
+    retriever = rag.load_retriever_from_faiss(str(tmp_path), k=5)
+    assert retriever == "retriever"
