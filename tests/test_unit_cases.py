@@ -270,8 +270,11 @@ def mock_rag_instance():
 @patch("src.document_chat.retrieval.ConversationalRAG")
 def test_chat_query_success(mock_rag, client, mock_rag_instance):
     mock_rag.return_value = mock_rag_instance
-    response = client.post("/chat/query", json={...})
+    response = client.post("/chat/query", json={
+        "question": "Hello?",
+        "session_id": "testsession",
+        "use_session_dirs": True,
+        "k": 3
+    })
     assert response.status_code == 200
-
-
 
