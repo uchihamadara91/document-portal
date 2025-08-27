@@ -253,11 +253,10 @@ def test_load_or_create_raises_without_texts(mock_faiss, tmp_index_dir):
 
 import pytest
 from fastapi.testclient import TestClient
-from api.main import app
+from unittest.mock import patch, MagicMock
+from api.main import app  # Adjust this import if your FastAPI app is located elsewhere
 
-@pytest.fixture
-def client():
-    return TestClient(app)
+client = TestClient(app)
 
 @pytest.fixture
 def mock_rag_instance():
@@ -266,15 +265,23 @@ def mock_rag_instance():
     instance.invoke.return_value = "mock answer"
     return instance
 
-
 @patch("src.document_chat.retrieval.ConversationalRAG")
-def test_chat_query_success(mock_rag, client, mock_rag_instance):
-    mock_rag.return_value = mock_rag_instance
+@patch("os.path.isdir", return_value=True)
+def test_chat_query_success(mock_isdir, mock_rag_class, mock_rag_instance):
+    mock_rag_class.return_value = mock_rag_instance
+
     response = client.post("/chat/query", data={
         "question": "Hello?",
         "session_id": "testsession",
         "use_session_dirs": True,
         "k": 3
     })
+
     assert response.status_code == 200
+    json_resp = response.json()
+    assert json_resp["answer"] == "mock answer"
+    assert json_resp["session_id"] == "testsession"
+    assert json_resp["k"] == 3
+    assert json_resp["engine"] == "LCEL-RAG"
+
 
