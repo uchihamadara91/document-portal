@@ -176,3 +176,57 @@ def test_compare_documents_invalid_file(monkeypatch):
     assert "Only PDF files are allowed" in response.text or "Comparison Failed" in response.text
 
 
+import pytest
+import json
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+from src.document_ingestion.data_ingestion import FaissManager
+from exception.custom_exception import DocumentPortalException
+
+
+@pytest.fixture
+def tmp_index_dir(tmp_path):
+    return tmp_path / "index"
+
+
+@pytest.fixture
+def fake_doc():
+    from langchain.schema import Document
+    return Document(page_content="Some content", metadata={"source": "a.txt"})
+
+
+@patch("src.document_ingestion.data_ingestion.FaissManager.FAISS")
+def test_load_or_create_new_index(mock_faiss, tmp_index_dir):
+    fake_emb = MagicMock()
+    mock_faiss.from_texts.return_value = MagicMock()
+    fm = FaissManager(tmp_index_dir, model_loader=MagicMock())
+    fm.emb = fake_emb
+    vs = fm.load_or_create(texts=["hi"], metadatas=[{"a": 1}])
+    assert vs is not None
+    mock_faiss.from_texts.assert_called_once()
+
+@patch("src.document_ingestion.data_ingestion.FaissManager.FAISS")
+def test_load_or_create_existing_index(mock_faiss, tmp_index_dir):
+    (tmp_index_dir / "index.faiss").write_text("x")
+    (tmp_index_dir / "index.pkl").write_text("y")
+    fm = FaissManager(tmp_index_dir, model_loader=MagicMock())
+    fm.emb = MagicMock()
+    vs = fm.load_or_create(texts=["fake"], metadatas=[{}])
+    mock_faiss.load_local.assert_called_once()
+
+def test_add_documents_new_and_duplicate(tmp_index_dir, fake_doc):
+    fm = FaissManager(tmp_index_dir, model_loader=MagicMock())
+    fm.vs = MagicMock()
+
+    added = fm.add_documents([fake_doc])
+    assert added == 1
+    # add again -> duplicate → no increment
+    added2 = fm.add_documents([fake_doc])
+    assert added2 == 0
+
+def test_add_documents_without_load(tmp_index_dir, fake_doc):
+    fm = FaissManager(tmp_index_dir, model_loader=MagicMock())
+    fm.vs = None
+    with pytest.raises(RuntimeError):
+        fm.add_documents([fake_doc])
