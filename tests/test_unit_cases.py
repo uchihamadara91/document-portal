@@ -251,26 +251,16 @@ def test_load_or_create_raises_without_texts(mock_faiss, tmp_index_dir):
 
 # -------- Chat Query -------- #
 
-import pytest
-from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
-from api.main import app
-
-client = TestClient(app)
-
-@pytest.fixture
-def mock_rag_instance():
-    instance = MagicMock()
-    instance.load_retriever_from_faiss.return_value = "retriever"
-    instance.invoke.return_value = "mock answer"
-    return instance
-
-@patch("utils.model_loader.ModelLoader")  # ✅ Patch ModelLoader to avoid env validation
-@patch("src.document_chat.retrieval.ConversationalRAG")  # ✅ Patch RAG class
-@patch("os.path.isdir", return_value=True)  # ✅ Simulate FAISS index directory
-def test_chat_query_success(mock_isdir, mock_rag_class, mock_model_loader, mock_rag_instance):
+@patch("utils.model_loader.ModelLoader", autospec=True)
+@patch("src.document_chat.retrieval.ConversationalRAG")
+@patch("os.path.isdir", return_value=True)
+def test_chat_query_success(mock_isdir, mock_rag_class, mock_model_loader_class):
+    mock_rag_instance = MagicMock()
     mock_rag_class.return_value = mock_rag_instance
-    mock_model_loader.return_value.load_llm.return_value = MagicMock()  # ✅ Fake LLM
+
+    mock_model_loader_instance = MagicMock()
+    mock_model_loader_instance.load_llm.return_value = MagicMock()
+    mock_model_loader_class.return_value = mock_model_loader_instance
 
     response = client.post("/chat/query", data={
         "question": "Hello?",
