@@ -30,10 +30,14 @@ class DocumentPortalException(Exception):
         while last_tb and last_tb.tb_next:
             last_tb = last_tb.tb_next
 
-        self.file_name = last_tb.tb_frame.f_code.co_filename if last_tb else "<unknown>"
-        self.lineno = last_tb.tb_lineno if last_tb else -1
-        self.error_message = norm_msg
+        if last_tb is not None and hasattr(last_tb, "tb_frame"):
+            self.file_name = last_tb.tb_frame.f_code.co_filename
+            self.lineno = last_tb.tb_lineno
+        else:
+            self.file_name = "<unknown>"
+            self.lineno = -1
 
+        self.error_message = norm_msg
         # Full pretty traceback (if available)
         if exc_type and exc_tb:
             self.traceback_str = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))

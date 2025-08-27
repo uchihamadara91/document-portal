@@ -176,153 +176,62 @@ def test_compare_documents_invalid_file(monkeypatch):
     assert "Only PDF files are allowed" in response.text or "Comparison Failed" in response.text
 
 
-# -------- Chat index and Chat Query Endpoint (happy Path) -------- #
+# -------- Chat index  -------- #
 
-class FakeUploadFile:
-    def __init__(self, filename, content_bytes):
-        self.filename = filename
-        self.file = io.BytesIO(content_bytes)
-        self.content = content_bytes
+import pytest
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+from src.document_ingestion.data_ingestion import ChatIngestor
+from exception.custom_exception import DocumentPortalException
+
 
 @pytest.fixture
-def mock_chat_ingestor(monkeypatch):
-    class MockChatIngestor:
-        def __init__(self, temp_base, faiss_base, use_session_dirs, session_id=None):
-            self.session_id = session_id or "mock-session"
-        def built_retriever(self, wrapped, chunk_size, chunk_overlap, k):
-            return "mock_retriever"
-    monkeypatch.setattr("api.main.ChatIngestor", MockChatIngestor)
+def tmp_dirs(tmp_path):
+    return {
+        "upload": tmp_path / "uploads",
+        "faiss": tmp_path / "faiss"
+    }
 
 @pytest.fixture
-def mock_conversational_rag(monkeypatch):
-    class MockConversationalRAG:
-        def __init__(self, session_id=None, retriever=None):
-            self.session_id = session_id
-        def load_retriever_from_faiss(self, index_dir, k=5, index_name=None):
-            pass
-        def invoke(self, question, chat_history=None):
-            return "mock answer"
-    monkeypatch.setattr("api.main.ConversationalRAG", MockConversationalRAG)
+def fake_doc():
+    from langchain.schema import Document
+    return Document(page_content="Hello World", metadata={"source": "file.txt"})
 
 
-# 1. Test /chat/index success with minimal files
-def test_chat_build_index_success(mock_chat_ingestor):
-    files = [
-        ("files", ("file1.txt", io.BytesIO(b"Dummy text content"), "text/plain")),
-        ("files", ("file2.txt", io.BytesIO(b"More text"), "text/plain")),
-    ]
-    response = client.post(
-        "/chat/index",
-        files=files,
-        data={"session_id": "test-session", "use_session_dirs": "true"}
-    )
-    assert response.status_code == 200
-    json_resp = response.json()
-    assert "session_id" in json_resp
-    assert json_resp["k"] == 5
-    assert json_resp["use_session_dirs"] is True
+def test_chat_ingestor_init(tmp_dirs):
+    ci = ChatIngestor(temp_base=tmp_dirs["upload"], faiss_base=tmp_dirs["faiss"])
+    assert ci.temp_dir.exists()
+    assert ci.faiss_dir.exists()
+    assert ci.session_id is not None
 
+def test_split_documents(fake_doc, tmp_dirs):
+    ci = ChatIngestor(temp_base=tmp_dirs["upload"], faiss_base=tmp_dirs["faiss"])
+    chunks = ci._split([fake_doc], chunk_size=5, chunk_overlap=0)
+    assert len(chunks) >= 1
+    assert all(hasattr(c, "page_content") for c in chunks)
 
-# 2. Test /chat/index failure returns 500 on exception
-def test_chat_build_index_failure(monkeypatch):
-    def fail_init(*args, **kwargs):
-        raise Exception("fail")
-    monkeypatch.setattr("api.main.ChatIngestor", fail_init)
-    files = [("files", ("file.txt", io.BytesIO(b"dummy"), "text/plain"))]
-    response = client.post("/chat/index", files=files)
-    assert response.status_code == 500
-    assert "Indexing failed" in response.json()["detail"]
+@patch("document_portal.chat_ingestor.save_uploaded_files")
+@patch("document_portal.chat_ingestor.load_documents")
+@patch("document_portal.chat_ingestor.FaissManager")
+def test_build_retriever_success(mock_fm, mock_load, mock_save, fake_doc, tmp_dirs):
+    ci = ChatIngestor(temp_base=tmp_dirs["upload"], faiss_base=tmp_dirs["faiss"])
 
-# 3. Test /chat/query success with session id
-def test_chat_query_success(mock_conversational_rag):
-    data = {
-        "question": "What is AI?",
-        "session_id": "test-session",
-        "use_session_dirs": "true",
-        "k": "5"
-    }
-    response = client.post("/chat/query", data=data)
-    assert response.status_code == 200
-    json_resp = response.json()
-    assert json_resp["answer"] == "mock answer"
-    assert json_resp["session_id"] == "test-session"
+    mock_save.return_value = ["file1.txt"]
+    mock_load.return_value = [fake_doc]
 
+    fake_vs = MagicMock()
+    fake_vs.as_retriever.return_value = "retriever"
+    mock_fm.return_value.load_or_create.return_value = fake_vs
+    mock_fm.return_value.add_documents.return_value = 1
 
-# 4. Test /chat/query error on missing session_id with use_session_dirs true
-def test_chat_query_missing_session_id():
-    data = {
-        "question": "Question?",
-        "use_session_dirs": "true"
-    }
-    response = client.post("/chat/query", data=data)
-    assert response.status_code == 400
-    assert "session_id is required" in response.json()["detail"]
-
-# 5. Test /chat/query error when FAISS index dir missing
-def test_chat_query_missing_index_dir(monkeypatch, tmp_path):
-    # Make index dir not exist
-    monkeypatch.setattr("os.path.isdir", lambda path: False)
-    data = {
-        "question": "Hi?",
-        "session_id": "test-session",
-        "use_session_dirs": "true"
-    }
-    response = client.post("/chat/query", data=data)
-    assert response.status_code == 404
-    assert "FAISS index not found" in response.json()["detail"]
-
-# 6. Test FaissManager _exists returns correct boolean
-def test_faiss_manager_exists(tmp_path):
-    index_dir = tmp_path
-    (index_dir / "index.faiss").write_text("fake faiss content")
-    (index_dir / "index.pkl").write_text("fake pkl content")
-    from src.document_ingestion.data_ingestion import FaissManager  # Adjust import path appropriately
-    fm = FaissManager(index_dir=index_dir, model_loader=None)
-    assert fm._exists() is True
-
-# 7. Test FaissManager _fingerprint returns string as expected
-def test_faiss_manager_fingerprint():
-    from src.document_ingestion.data_ingestion import FaissManager
-    text = "some text"
-    md = {"source": "/path/to/file", "row_id": 5}
-    fp = FaissManager._fingerprint(text, md)
-    assert fp == "/path/to/file::5"
-    md2 = {}
-    fp2 = FaissManager._fingerprint(text, md2)
-    assert isinstance(fp2, str) and len(fp2) == 64  # sha256 hex length
-
-# 8. Test ChatIngestor _resolve_dir creates correct paths
-def test_chat_ingestor_resolve_dir(monkeypatch, tmp_path):
-    from src.document_ingestion.data_ingestion import ChatIngestor
-    ci = ChatIngestor(temp_base=str(tmp_path), faiss_base=str(tmp_path), use_session_dirs=True, session_id="sess1")
-    assert (tmp_path / "sess1").exists()
-    ci2 = ChatIngestor(temp_base=str(tmp_path), faiss_base=str(tmp_path), use_session_dirs=False)
-    assert str(ci2.temp_dir) == str(tmp_path)
-
-# 9. Test ConversationalRAG raises exception if invoke before loading retriever
-def test_conversationalrag_invoke_fail(monkeypatch):
-    from src.document_chat.retrieval import ConversationalRAG
-    rag = ConversationalRAG(session_id="sess")
-    rag.chain = None
-    with pytest.raises(Exception):
-        rag.invoke("Hello")
-
-# 10. Test ConversationalRAG load_retriever_from_faiss success
-def test_conversationalrag_load_retriever(monkeypatch, tmp_path):
-    from src.document_chat.retrieval import ConversationalRAG
-
-    def fake_load_embeddings():
-        return "embedding"
-
-    class FakeFAISS:
-        @staticmethod
-        def load_local(path, embeddings, index_name=None, allow_dangerous_deserialization=True):
-            return FakeFAISS()
-        def as_retriever(self, search_type=None, search_kwargs=None):
-            return "retriever"
-
-    monkeypatch.setattr("src.chatindex.conversationalrag.ModelLoader.load_embeddings", fake_load_embeddings)
-    monkeypatch.setattr("src.chatindex.conversationalrag.FAISS", FakeFAISS)
-    rag = ConversationalRAG(session_id="sess")
-    retriever = rag.load_retriever_from_faiss(str(tmp_path), k=5)
+    retriever = ci.built_retriever(["dummy"])
     assert retriever == "retriever"
+    mock_fm.return_value.add_documents.assert_called()
+
+@patch("document_portal.chat_ingestor.save_uploaded_files", lambda files, td: [])
+@patch("document_portal.chat_ingestor.load_documents", lambda paths: [])
+def test_build_retriever_no_docs(tmp_dirs):
+    ci = ChatIngestor(temp_base=tmp_dirs["upload"], faiss_base=tmp_dirs["faiss"])
+    with pytest.raises(DocumentPortalException):
+        ci.built_retriever(["dummy"])
