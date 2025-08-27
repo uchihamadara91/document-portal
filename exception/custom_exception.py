@@ -1,4 +1,3 @@
-# exception/custom_exception.py
 import sys
 import traceback
 from typing import Optional, cast
@@ -30,14 +29,10 @@ class DocumentPortalException(Exception):
         while last_tb and last_tb.tb_next:
             last_tb = last_tb.tb_next
 
-        if last_tb is not None and hasattr(last_tb, "tb_frame"):
-            self.file_name = last_tb.tb_frame.f_code.co_filename
-            self.lineno = last_tb.tb_lineno
-        else:
-            self.file_name = "<unknown>"
-            self.lineno = -1
-
+        self.file_name = last_tb.tb_frame.f_code.co_filename if last_tb else "<unknown>"
+        self.lineno = last_tb.tb_lineno if last_tb else -1
         self.error_message = norm_msg
+
         # Full pretty traceback (if available)
         if exc_type and exc_tb:
             self.traceback_str = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
@@ -57,9 +52,15 @@ class DocumentPortalException(Exception):
         return f"DocumentPortalException(file={self.file_name!r}, line={self.lineno}, message={self.error_message!r})"
 
 
-if __name__ == "__main__":
-    # Demo-1: generic exception -> wrap
-    try:
-        a = 1 / 0
-    except Exception as e:
-        raise DocumentPortalException("Division failed", e) from e
+# if __name__ == "__main__":
+#     # Demo-1: generic exception -> wrap
+#     try:
+#         a = 1 / 0
+#     except Exception as e:
+#         raise DocumentPortalException("Division failed", e) from e
+
+#     # Demo-2: still supports sys (old pattern)
+#     # try:
+#     #     a = int("abc")
+#     # except Exception as e:
+#     #     raise DocumentPortalException(e, sys)
