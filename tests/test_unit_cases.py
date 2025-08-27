@@ -258,9 +258,9 @@ from api.main import app  # Adjust import if your FastAPI app path is different
 
 client = TestClient(app)
 
+@patch("os.path.isdir", return_value=True)
 @patch("src.document_chat.retrieval.ConversationalRAG")
-def test_chat_query_success(mock_rag):
-    # Setup mock rag
+def test_chat_query_success(mock_rag, mock_isdir):
     mock_instance = MagicMock()
     mock_rag.return_value = mock_instance
     mock_instance.load_retriever_from_faiss.return_value = "retriever"
@@ -282,7 +282,7 @@ def test_chat_query_success(mock_rag):
     assert json_resp["session_id"] == "testsession"
     assert json_resp["k"] == 3
     assert json_resp["engine"] == "LCEL-RAG"
-
+    
 @patch("src.document_chat.retrieval.ConversationalRAG")
 def test_chat_query_missing_session_id(mock_rag):
     # Session ID required if use_session_dirs=True
