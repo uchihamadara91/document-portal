@@ -196,7 +196,7 @@ def fake_doc():
     return Document(page_content="Some content", metadata={"source": "a.txt"})
 
 
-@patch("src.document_ingestion.data_ingestion.FaissManager.FAISS")
+@patch("src.document_ingestion.data_ingestion.FaissManager")
 def test_load_or_create_new_index(mock_faiss, tmp_index_dir):
     fake_emb = MagicMock()
     mock_faiss.from_texts.return_value = MagicMock()
@@ -206,7 +206,7 @@ def test_load_or_create_new_index(mock_faiss, tmp_index_dir):
     assert vs is not None
     mock_faiss.from_texts.assert_called_once()
 
-@patch("src.document_ingestion.data_ingestion.FaissManager.FAISS")
+@patch("src.document_ingestion.data_ingestion.FaissManager")
 def test_load_or_create_existing_index(mock_faiss, tmp_index_dir):
     (tmp_index_dir / "index.faiss").write_text("x")
     (tmp_index_dir / "index.pkl").write_text("y")
