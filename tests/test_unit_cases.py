@@ -10,6 +10,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 from src.document_ingestion.data_ingestion import FaissManager
 from exception.custom_exception import DocumentPortalException
+from langchain.schema import Document
+
 
 
 client = TestClient(app)
@@ -183,10 +185,7 @@ def test_compare_documents_invalid_file(monkeypatch):
 # -------- Chat Index -------- #
 
 
-import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-from src.document_ingestion.data_ingestion import FaissManager
+
 
 @pytest.fixture
 def tmp_index_dir(tmp_path):
@@ -224,3 +223,28 @@ def test_load_or_create_existing_index(mock_faiss, tmp_index_dir):
     assert mock_faiss.load_local.called
     # The original FaissManager.load_or_create returns self.vs (which might be None)
     # Optionally patch FaissManager to set self.vs if needed, but test is to assert load_local happened
+
+
+def test_faiss_manager_fingerprint_and_save_meta(tmp_index_dir):
+    fm = FaissManager(tmp_index_dir, model_loader=MagicMock())
+    # Initially meta should have no rows
+    assert "rows" in fm._meta and isinstance(fm._meta["rows"], dict)
+
+    doc = Document(page_content="sample text", metadata={"source": "file.txt", "row_id": 1})
+    key = fm._fingerprint(doc.page_content, doc.metadata)
+    # Add manually to meta
+    fm._meta["rows"][key] = True
+    # Trigger save meta and check file exists
+    fm._save_meta()
+    assert (tmp_index_dir / "ingested_meta.json").exists()
+
+@patch("src.document_ingestion.data_ingestion.FAISS")
+def test_load_or_create_raises_without_texts(mock_faiss, tmp_index_dir):
+    """load_or_create should raise if no index and no input texts provided"""
+    mock_faiss.load_local.side_effect = FileNotFoundError()
+    fm = FaissManager(tmp_index_dir, model_loader=MagicMock())
+    fm.emb = MagicMock()
+    # Manually prevent existing index
+    fm._exists = lambda: False
+    with pytest.raises(Exception):
+        fm.load_or_create(texts=None)
