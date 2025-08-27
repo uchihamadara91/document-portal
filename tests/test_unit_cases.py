@@ -254,7 +254,7 @@ def test_load_or_create_raises_without_texts(mock_faiss, tmp_index_dir):
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
-from api.main import app  # Adjust this import if your FastAPI app is located elsewhere
+from api.main import app
 
 client = TestClient(app)
 
@@ -265,10 +265,12 @@ def mock_rag_instance():
     instance.invoke.return_value = "mock answer"
     return instance
 
-@patch("src.document_chat.retrieval.ConversationalRAG")
-@patch("os.path.isdir", return_value=True)
-def test_chat_query_success(mock_isdir, mock_rag_class, mock_rag_instance):
+@patch("src.utils.model_loader.ModelLoader")  # ✅ Patch ModelLoader to avoid env validation
+@patch("src.document_chat.retrieval.ConversationalRAG")  # ✅ Patch RAG class
+@patch("os.path.isdir", return_value=True)  # ✅ Simulate FAISS index directory
+def test_chat_query_success(mock_isdir, mock_rag_class, mock_model_loader, mock_rag_instance):
     mock_rag_class.return_value = mock_rag_instance
+    mock_model_loader.return_value.load_llm.return_value = MagicMock()  # ✅ Fake LLM
 
     response = client.post("/chat/query", data={
         "question": "Hello?",
@@ -283,5 +285,6 @@ def test_chat_query_success(mock_isdir, mock_rag_class, mock_rag_instance):
     assert json_resp["session_id"] == "testsession"
     assert json_resp["k"] == 3
     assert json_resp["engine"] == "LCEL-RAG"
+
 
 
