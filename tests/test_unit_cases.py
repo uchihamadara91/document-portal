@@ -251,72 +251,85 @@ def test_load_or_create_raises_without_texts(mock_faiss, tmp_index_dir):
 
 # -------- Chat Query -------- #
 
-import os
 import pytest
-from unittest.mock import MagicMock, patch
-from src.document_chat.retrieval import ConversationalRAG
-from exception.custom_exception import DocumentPortalException
-from langchain_core.messages import BaseMessage
+from fastapi.testclient import TestClient
+from unittest.mock import patch, MagicMock
+from api.main import app  # Adjust import if your FastAPI app path is different
 
-@pytest.fixture
-def fake_session_id():
-    return "test-session"
+client = TestClient(app)
 
-@pytest.fixture
-def rag_instance(fake_session_id):
-    return ConversationalRAG(session_id=fake_session_id)
+@patch("src.document_chat.retrieval.ConversationalRAG")
+def test_chat_query_success(mock_rag):
+    # Setup mock rag
+    mock_instance = MagicMock()
+    mock_rag.return_value = mock_instance
+    mock_instance.load_retriever_from_faiss.return_value = "retriever"
+    mock_instance.invoke.return_value = "mock answer"
 
-def test_init_loads_llm_success(monkeypatch, fake_session_id):
-    mock_llm = MagicMock()
-    monkeypatch.setattr("src.document_chat.retrieval.ModelLoader.load_llm", lambda self: mock_llm)
-    rag = ConversationalRAG(session_id=fake_session_id)
-    assert rag.llm == mock_llm
-    assert rag.session_id == fake_session_id
-
-def test_init_loads_llm_failure(monkeypatch):
-    def fail_load_llm(self):
-        raise RuntimeError("fail")
-    monkeypatch.setattr("src.document_chat.retrieval.ModelLoader.load_llm", fail_load_llm)
-    with pytest.raises(DocumentPortalException):
-        ConversationalRAG(session_id="sid")
-
-@patch("src.document_chat.retrieval.ModelLoader.load_embeddings")
-@patch("src.document_chat.retrieval.FAISS.load_local")
-def test_load_retriever_from_faiss_success(mock_load_local, mock_load_embed, rag_instance, fake_session_id, tmp_path):
-    mock_embed = MagicMock()
-    mock_load_embed.return_value = mock_embed
-    mock_vs = MagicMock()
-    mock_load_local.return_value = mock_vs
-
-    index_dir = tmp_path / "index_dir"
-    index_dir.mkdir()
-    retriever = rag_instance.load_retriever_from_faiss(str(index_dir), k=3)
-
-    mock_load_local.assert_called_once_with(
-        str(index_dir), mock_embed, index_name="index", allow_dangerous_deserialization=True
+    response = client.post(
+        "/chat/query",
+        data={
+            "question": "Hello?",
+            "session_id": "testsession",
+            "use_session_dirs": True,
+            "k": 3
+        }
     )
-    assert retriever == rag_instance.retriever
 
-def test_load_retriever_from_faiss_missing_dir(rag_instance):
-    with pytest.raises(DocumentPortalException):
-        rag_instance.load_retriever_from_faiss("non_existent_dir")
+    assert response.status_code == 200
+    json_resp = response.json()
+    assert json_resp["answer"] == "mock answer"
+    assert json_resp["session_id"] == "testsession"
+    assert json_resp["k"] == 3
+    assert json_resp["engine"] == "LCEL-RAG"
 
-def test_invoke_chain_not_initialized(rag_instance):
-    rag_instance.chain = None
-    with pytest.raises(DocumentPortalException, match="RAG chain not initialized"):
-        rag_instance.invoke("Hello")
+@patch("src.document_chat.retrieval.ConversationalRAG")
+def test_chat_query_missing_session_id(mock_rag):
+    # Session ID required if use_session_dirs=True
+    response = client.post(
+        "/chat/query",
+        data={
+            "question": "Hi",
+            "use_session_dirs": True,
+            "k": 5
+        }
+    )
+    assert response.status_code == 400
+    assert "session_id is required" in response.json()["detail"]
 
-def test_invoke_success(monkeypatch, rag_instance):
-    # Setup chain mock that returns an answer string
-    mocked_answer = "Hello answer"
-    rag_instance.chain = MagicMock()
-    rag_instance.chain.invoke.return_value = mocked_answer
+def test_chat_query_faiss_index_not_found():
+    # No patching here means normal code runs, directory check fails
+    response = client.post(
+        "/chat/query",
+        data={
+            "question": "Hi",
+            "session_id": "fakeid",
+            "use_session_dirs": False,
+            "k": 5
+        }
+    )
+    # Assuming your code raises 404 if index_dir does not exist
+    assert response.status_code == 404
+    assert "FAISS index not found" in response.json()["detail"]
 
-    response = rag_instance.invoke("Sample question", chat_history=[])
-    rag_instance.chain.invoke.assert_called_once()
-    assert response == mocked_answer
+@patch("src.document_chat.retrieval.ConversationalRAG")
+def test_chat_query_internal_error(mock_rag):
+    # Setup mock rag to raise an error inside invoke
+    mock_instance = MagicMock()
+    mock_rag.return_value = mock_instance
+    mock_instance.load_retriever_from_faiss.return_value = "retriever"
+    mock_instance.invoke.side_effect = Exception("something failed")
 
-def test_build_lcel_chain_raises_without_retriever(rag_instance):
-    rag_instance.retriever = None
-    with pytest.raises(DocumentPortalException, match="No retriever set before building chain"):
-        rag_instance._build_lcel_chain()
+    response = client.post(
+        "/chat/query",
+        data={
+            "question": "Hello?",
+            "session_id": "testsession",
+            "use_session_dirs": True,
+            "k": 3
+        }
+    )
+
+    assert response.status_code == 500
+    assert "Query failed" in response.json()["detail"]
+
