@@ -185,7 +185,6 @@ from unittest.mock import MagicMock, patch
 from src.document_ingestion.data_ingestion import ChatIngestor
 from exception.custom_exception import DocumentPortalException
 
-
 @pytest.fixture
 def tmp_dirs(tmp_path):
     return {
@@ -197,7 +196,6 @@ def tmp_dirs(tmp_path):
 def fake_doc():
     from langchain.schema import Document
     return Document(page_content="Hello World", metadata={"source": "file.txt"})
-
 
 def test_chat_ingestor_init(tmp_dirs):
     ci = ChatIngestor(temp_base=tmp_dirs["upload"], faiss_base=tmp_dirs["faiss"])
@@ -211,9 +209,9 @@ def test_split_documents(fake_doc, tmp_dirs):
     assert len(chunks) >= 1
     assert all(hasattr(c, "page_content") for c in chunks)
 
-@patch("document_portal.chat_ingestor.save_uploaded_files")
-@patch("document_portal.chat_ingestor.load_documents")
-@patch("document_portal.chat_ingestor.FaissManager")
+@patch("src.document_ingestion.data_ingestion.save_uploaded_files")
+@patch("src.document_ingestion.data_ingestion.load_documents")
+@patch("src.document_ingestion.data_ingestion.FaissManager")
 def test_build_retriever_success(mock_fm, mock_load, mock_save, fake_doc, tmp_dirs):
     ci = ChatIngestor(temp_base=tmp_dirs["upload"], faiss_base=tmp_dirs["faiss"])
 
@@ -229,8 +227,8 @@ def test_build_retriever_success(mock_fm, mock_load, mock_save, fake_doc, tmp_di
     assert retriever == "retriever"
     mock_fm.return_value.add_documents.assert_called()
 
-@patch("document_portal.chat_ingestor.save_uploaded_files", lambda files, td: [])
-@patch("document_portal.chat_ingestor.load_documents", lambda paths: [])
+@patch("src.document_ingestion.data_ingestion.save_uploaded_files", lambda files, td: [])
+@patch("src.document_ingestion.data_ingestion.load_documents", lambda paths: [])
 def test_build_retriever_no_docs(tmp_dirs):
     ci = ChatIngestor(temp_base=tmp_dirs["upload"], faiss_base=tmp_dirs["faiss"])
     with pytest.raises(DocumentPortalException):
