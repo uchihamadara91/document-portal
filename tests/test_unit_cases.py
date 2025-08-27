@@ -5,7 +5,11 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 from api.main import app   # or your FastAPI entrypoint
-
+import json
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+from src.document_ingestion.data_ingestion import FaissManager
+from exception.custom_exception import DocumentPortalException
 
 
 client = TestClient(app)
@@ -176,18 +180,12 @@ def test_compare_documents_invalid_file(monkeypatch):
     assert "Only PDF files are allowed" in response.text or "Comparison Failed" in response.text
 
 
-import pytest
-import json
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
-from src.document_ingestion.data_ingestion import FaissManager
-from exception.custom_exception import DocumentPortalException
 
 
 @pytest.fixture
 def tmp_index_dir(tmp_path):
-    return tmp_path / "index"
+    return tmp_path / "faiss_index"
 
 
 @pytest.fixture
