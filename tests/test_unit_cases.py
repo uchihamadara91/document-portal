@@ -265,7 +265,7 @@ def mock_rag_instance():
     instance.invoke.return_value = "mock answer"
     return instance
 
-@patch("src.utils.model_loader.ModelLoader")  # ✅ Patch ModelLoader to avoid env validation
+@patch("utils.model_loader.ModelLoader")  # ✅ Patch ModelLoader to avoid env validation
 @patch("src.document_chat.retrieval.ConversationalRAG")  # ✅ Patch RAG class
 @patch("os.path.isdir", return_value=True)  # ✅ Simulate FAISS index directory
 def test_chat_query_success(mock_isdir, mock_rag_class, mock_model_loader, mock_rag_instance):
