@@ -248,3 +248,75 @@ def test_load_or_create_raises_without_texts(mock_faiss, tmp_index_dir):
     fm._exists = lambda: False
     with pytest.raises(Exception):
         fm.load_or_create(texts=None)
+
+# -------- Chat Query -------- #
+
+import os
+import pytest
+from unittest.mock import MagicMock, patch
+from src.document_chat.retrieval import ConversationalRAG
+from exception.custom_exception import DocumentPortalException
+from langchain_core.messages import BaseMessage
+
+@pytest.fixture
+def fake_session_id():
+    return "test-session"
+
+@pytest.fixture
+def rag_instance(fake_session_id):
+    return ConversationalRAG(session_id=fake_session_id)
+
+def test_init_loads_llm_success(monkeypatch, fake_session_id):
+    mock_llm = MagicMock()
+    monkeypatch.setattr("src.document_chat.retrieval.ModelLoader.load_llm", lambda self: mock_llm)
+    rag = ConversationalRAG(session_id=fake_session_id)
+    assert rag.llm == mock_llm
+    assert rag.session_id == fake_session_id
+
+def test_init_loads_llm_failure(monkeypatch):
+    def fail_load_llm(self):
+        raise RuntimeError("fail")
+    monkeypatch.setattr("src.document_chat.retrieval.ModelLoader.load_llm", fail_load_llm)
+    with pytest.raises(DocumentPortalException):
+        ConversationalRAG(session_id="sid")
+
+@patch("src.document_chat.retrieval.ModelLoader.load_embeddings")
+@patch("src.document_chat.retrieval.FAISS.load_local")
+def test_load_retriever_from_faiss_success(mock_load_local, mock_load_embed, rag_instance, fake_session_id, tmp_path):
+    mock_embed = MagicMock()
+    mock_load_embed.return_value = mock_embed
+    mock_vs = MagicMock()
+    mock_load_local.return_value = mock_vs
+
+    index_dir = tmp_path / "index_dir"
+    index_dir.mkdir()
+    retriever = rag_instance.load_retriever_from_faiss(str(index_dir), k=3)
+
+    mock_load_local.assert_called_once_with(
+        str(index_dir), mock_embed, index_name="index", allow_dangerous_deserialization=True
+    )
+    assert retriever == rag_instance.retriever
+
+def test_load_retriever_from_faiss_missing_dir(rag_instance):
+    with pytest.raises(DocumentPortalException):
+        rag_instance.load_retriever_from_faiss("non_existent_dir")
+
+def test_invoke_chain_not_initialized(rag_instance):
+    rag_instance.chain = None
+    with pytest.raises(DocumentPortalException, match="RAG chain not initialized"):
+        rag_instance.invoke("Hello")
+
+def test_invoke_success(monkeypatch, rag_instance):
+    # Setup chain mock that returns an answer string
+    mocked_answer = "Hello answer"
+    rag_instance.chain = MagicMock()
+    rag_instance.chain.invoke.return_value = mocked_answer
+
+    response = rag_instance.invoke("Sample question", chat_history=[])
+    rag_instance.chain.invoke.assert_called_once()
+    assert response == mocked_answer
+
+def test_build_lcel_chain_raises_without_retriever(rag_instance):
+    rag_instance.retriever = None
+    with pytest.raises(DocumentPortalException, match="No retriever set before building chain"):
+        rag_instance._build_lcel_chain()
