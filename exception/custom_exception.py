@@ -2,6 +2,7 @@ import sys
 import traceback
 from typing import Optional, cast
 
+
 class DocumentPortalException(Exception):
     def __init__(self, error_message, error_details: Optional[object] = None):
         # Normalize message
@@ -16,7 +17,6 @@ class DocumentPortalException(Exception):
             exc_type, exc_value, exc_tb = sys.exc_info()
         else:
             if hasattr(error_details, "exc_info"):  # e.g., sys
-                #exc_type, exc_value, exc_tb = error_details.exc_info()
                 exc_info_obj = cast(sys, error_details)
                 exc_type, exc_value, exc_tb = exc_info_obj.exc_info()
             elif isinstance(error_details, BaseException):
@@ -29,10 +29,14 @@ class DocumentPortalException(Exception):
         while last_tb and last_tb.tb_next:
             last_tb = last_tb.tb_next
 
-        self.file_name = last_tb.tb_frame.f_code.co_filename if last_tb else "<unknown>"
-        self.lineno = last_tb.tb_lineno if last_tb else -1
-        self.error_message = norm_msg
+        if last_tb is not None and hasattr(last_tb, "tb_frame") and last_tb.tb_frame is not None:
+            self.file_name = last_tb.tb_frame.f_code.co_filename
+            self.lineno = last_tb.tb_lineno
+        else:
+            self.file_name = "<unknown>"
+            self.lineno = -1
 
+        self.error_message = norm_msg
         # Full pretty traceback (if available)
         if exc_type and exc_tb:
             self.traceback_str = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
@@ -58,9 +62,3 @@ class DocumentPortalException(Exception):
 #         a = 1 / 0
 #     except Exception as e:
 #         raise DocumentPortalException("Division failed", e) from e
-
-#     # Demo-2: still supports sys (old pattern)
-#     # try:
-#     #     a = int("abc")
-#     # except Exception as e:
-#     #     raise DocumentPortalException(e, sys)
