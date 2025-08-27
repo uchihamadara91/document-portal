@@ -180,32 +180,39 @@ def test_compare_documents_invalid_file(monkeypatch):
     assert "Only PDF files are allowed" in response.text or "Comparison Failed" in response.text
 
 
-
+# -------- Chat Index -------- #
 
 
 @pytest.fixture
 def tmp_index_dir(tmp_path):
-    return tmp_path / "faiss_index"
-
+    d = tmp_path / "faiss_index"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 @pytest.fixture
 def fake_doc():
     from langchain.schema import Document
     return Document(page_content="Some content", metadata={"source": "a.txt"})
 
-
-@patch("src.document_ingestion.data_ingestion.FaissManager")
+@patch("langchain_community.vectorstores.faiss.FAISS")
 def test_load_or_create_new_index(mock_faiss, tmp_index_dir):
     fake_emb = MagicMock()
-    mock_faiss.from_texts.return_value = MagicMock()
+    # Simulate from_texts returning a VS and the embedding function returning the proper number of embeddings
+    mock_vs = MagicMock()
+    mock_faiss.from_texts.return_value = mock_vs
+
     fm = FaissManager(tmp_index_dir, model_loader=MagicMock())
-    fm.emb = fake_emb
+    fm.emb = MagicMock()
+    # Patch emb so that embed_documents returns list of the correct shape
+    fm.emb.embed_documents.return_value = [[0.1] * 10]  # One embedding vector for "hi"
     vs = fm.load_or_create(texts=["hi"], metadatas=[{"a": 1}])
-    assert vs is not None
+    assert vs == mock_vs
     mock_faiss.from_texts.assert_called_once()
 
-@patch("src.document_ingestion.data_ingestion.FaissManager")
+@patch("langchain_community.vectorstores.faiss.FAISS")
 def test_load_or_create_existing_index(mock_faiss, tmp_index_dir):
+    # Ensure directory exists
+    tmp_index_dir.mkdir(parents=True, exist_ok=True)
     (tmp_index_dir / "index.faiss").write_text("x")
     (tmp_index_dir / "index.pkl").write_text("y")
     fm = FaissManager(tmp_index_dir, model_loader=MagicMock())
