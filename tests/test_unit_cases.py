@@ -255,9 +255,13 @@ def test_load_or_create_raises_without_texts(mock_faiss, tmp_index_dir):
 @patch("src.document_chat.retrieval.ConversationalRAG")
 @patch("os.path.isdir", return_value=True)
 def test_chat_query_success(mock_isdir, mock_rag_class, mock_model_loader_class):
+    # Mock the RAG instance
     mock_rag_instance = MagicMock()
+    mock_rag_instance.load_retriever_from_faiss.return_value = "retriever"
+    mock_rag_instance.invoke.return_value = "mock answer"
     mock_rag_class.return_value = mock_rag_instance
 
+    # Mock ModelLoader and its load_llm method
     mock_model_loader_instance = MagicMock()
     mock_model_loader_instance.load_llm.return_value = MagicMock()
     mock_model_loader_class.return_value = mock_model_loader_instance
