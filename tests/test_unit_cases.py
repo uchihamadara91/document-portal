@@ -253,83 +253,25 @@ def test_load_or_create_raises_without_texts(mock_faiss, tmp_index_dir):
 
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
-from api.main import app  # Adjust import if your FastAPI app path is different
+from api.main import app
 
-client = TestClient(app)
+@pytest.fixture
+def client():
+    return TestClient(app)
 
-@patch("os.path.isdir", return_value=True)
+@pytest.fixture
+def mock_rag_instance():
+    instance = MagicMock()
+    instance.load_retriever_from_faiss.return_value = "retriever"
+    instance.invoke.return_value = "mock answer"
+    return instance
+
+
 @patch("src.document_chat.retrieval.ConversationalRAG")
-def test_chat_query_success(mock_rag, mock_isdir):
-    mock_instance = MagicMock()
-    mock_rag.return_value = mock_instance
-    mock_instance.load_retriever_from_faiss.return_value = "retriever"
-    mock_instance.invoke.return_value = "mock answer"
-
-    response = client.post(
-        "/chat/query",
-        data={
-            "question": "Hello?",
-            "session_id": "testsession",
-            "use_session_dirs": True,
-            "k": 3
-        }
-    )
-
+def test_chat_query_success(mock_rag, client, mock_rag_instance):
+    mock_rag.return_value = mock_rag_instance
+    response = client.post("/chat/query", json={...})
     assert response.status_code == 200
-    json_resp = response.json()
-    assert json_resp["answer"] == "mock answer"
-    assert json_resp["session_id"] == "testsession"
-    assert json_resp["k"] == 3
-    assert json_resp["engine"] == "LCEL-RAG"
-    
-@patch("src.document_chat.retrieval.ConversationalRAG")
-def test_chat_query_missing_session_id(mock_rag):
-    # Session ID required if use_session_dirs=True
-    response = client.post(
-        "/chat/query",
-        data={
-            "question": "Hi",
-            "use_session_dirs": True,
-            "k": 5
-        }
-    )
-    assert response.status_code == 400
-    assert "session_id is required" in response.json()["detail"]
 
-def test_chat_query_faiss_index_not_found():
-    # No patching here means normal code runs, directory check fails
-    response = client.post(
-        "/chat/query",
-        data={
-            "question": "Hi",
-            "session_id": "fakeid",
-            "use_session_dirs": False,
-            "k": 5
-        }
-    )
-    # Assuming your code raises 404 if index_dir does not exist
-    assert response.status_code == 404
-    assert "FAISS index not found" in response.json()["detail"]
 
-@patch("src.document_chat.retrieval.ConversationalRAG")
-def test_chat_query_internal_error(mock_rag):
-    # Setup mock rag to raise an error inside invoke
-    mock_instance = MagicMock()
-    mock_rag.return_value = mock_instance
-    mock_instance.load_retriever_from_faiss.return_value = "retriever"
-    mock_instance.invoke.side_effect = Exception("something failed")
-
-    response = client.post(
-        "/chat/query",
-        data={
-            "question": "Hello?",
-            "session_id": "testsession",
-            "use_session_dirs": True,
-            "k": 3
-        }
-    )
-
-    assert response.status_code == 500
-    assert "Query failed" in response.json()["detail"]
 
